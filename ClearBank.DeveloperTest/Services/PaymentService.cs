@@ -1,93 +1,63 @@
-﻿using ClearBank.DeveloperTest.Data;
+﻿using ClearBank.DeveloperTest.Data.Interfaces;
+using ClearBank.DeveloperTest.Factory.Interface;
 using ClearBank.DeveloperTest.Types;
+using System;
 using System.Configuration;
 
 namespace ClearBank.DeveloperTest.Services
 {
     public class PaymentService : IPaymentService
     {
+        private readonly IAccountDataStore _accountDataStore;
+        private readonly IAccountDataStore _backupAccountDataStore;
+        private readonly IPaymentFactory _paymentFactory;
+
+        private const string AppSettingDataStoreType = "DataStoreType";
+        private const string BackupDataStoreType = "Backup";
+
+        public PaymentService(IAccountDataStore accountDataStore, IAccountDataStore backupAccountDataStore, IPaymentFactory paymentFactory)
+        {
+            _accountDataStore = accountDataStore;
+            _backupAccountDataStore = backupAccountDataStore;
+            _paymentFactory = paymentFactory;
+        }
+
         public MakePaymentResult MakePayment(MakePaymentRequest request)
         {
-            var dataStoreType = ConfigurationManager.AppSettings["DataStoreType"];
+            var accountDataStore = GetAccountDataStore();
 
-            Account account = null;
+            var account = accountDataStore.GetAccount(request.DebtorAccountNumber);
 
-            if (dataStoreType == "Backup")
+            var result = new MakePaymentResult { Success = false };
+
+            if (account == null)
             {
-                var accountDataStore = new BackupAccountDataStore();
-                account = accountDataStore.GetAccount(request.DebtorAccountNumber);
-            }
-            else
-            {
-                var accountDataStore = new AccountDataStore();
-                account = accountDataStore.GetAccount(request.DebtorAccountNumber);
+                return result;
             }
 
-            var result = new MakePaymentResult();
-
-            result.Success = true;
-            
-            switch (request.PaymentScheme)
-            {
-                case PaymentScheme.Bacs:
-                    if (account == null)
-                    {
-                        result.Success = false;
-                    }
-                    else if (!account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Bacs))
-                    {
-                        result.Success = false;
-                    }
-                    break;
-
-                case PaymentScheme.FasterPayments:
-                    if (account == null)
-                    {
-                        result.Success = false;
-                    }
-                    else if (!account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.FasterPayments))
-                    {
-                        result.Success = false;
-                    }
-                    else if (account.Balance < request.Amount)
-                    {
-                        result.Success = false;
-                    }
-                    break;
-
-                case PaymentScheme.Chaps:
-                    if (account == null)
-                    {
-                        result.Success = false;
-                    }
-                    else if (!account.AllowedPaymentSchemes.HasFlag(AllowedPaymentSchemes.Chaps))
-                    {
-                        result.Success = false;
-                    }
-                    else if (account.Status != AccountStatus.Live)
-                    {
-                        result.Success = false;
-                    }
-                    break;
-            }
+            result.Success = _paymentFactory.GetStrategy(request.PaymentScheme)?.DoesPaymentConditionMatch(request, account) ?? false;
 
             if (result.Success)
             {
-                account.Balance -= request.Amount;
-
-                if (dataStoreType == "Backup")
-                {
-                    var accountDataStore = new BackupAccountDataStore();
-                    accountDataStore.UpdateAccount(account);
-                }
-                else
-                {
-                    var accountDataStore = new AccountDataStore();
-                    accountDataStore.UpdateAccount(account);
-                }
+                UpdateAccount(request, account, accountDataStore);
             }
 
             return result;
+        }
+
+        private void UpdateAccount(MakePaymentRequest request, Account account, IAccountDataStore accountDataStore)
+        {
+            account.Balance -= request.Amount;
+
+            accountDataStore.UpdateAccount(account);
+        }
+
+        private IAccountDataStore GetAccountDataStore()
+        {
+            var dataStoreType = ConfigurationManager.AppSettings[AppSettingDataStoreType];
+            
+            return dataStoreType.Equals(BackupDataStoreType, StringComparison.InvariantCultureIgnoreCase)
+                ? _backupAccountDataStore : _accountDataStore;
         }
     }
 }

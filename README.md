@@ -1,21 +1,14 @@
-### Test Description
-In the 'PaymentService.cs' file you will find a method for making a payment. At a high level the steps for making a payment are:
+### Shahzad Emambaccus 
 
- - Lookup the account the payment is being made from
- - Check the account is in a valid state to make the payment
- - Deduct the payment amount from the account's balance and update the account in the database
- 
-What we’d like you to do is refactor the code with the following things in mind:  
- - Adherence to SOLID principals
- - Testability  
- - Readability 
+The original payment service had a few issues which made it hard to test and maintain, so I refactored it using solid principles and make it much easier to test and read.
 
-We’d also like you to add some unit tests to the ClearBank.DeveloperTest.Tests project to show how you would test the code that you’ve produced. The only specific ‘rules’ are:  
+1. I introduced interfaces to decouple the components, making it easier to swap implementations for testing or future changes.
+2. Created a factory with strategy pattern to handle different payment methods, allowing for easy addition of new methods without modifying existing code. Within the factory itself, it has different strategies for each payment method. Each with their own implementation of the payment process. This can be expanded upon in the future if the validation logic of the different payment methods changes. 
+3. The Payment service takes in 3 different interfaces, as the back up account and the standard account both use the same methods, it made sense to have them implement the same interface. Then added the factory interface to handle the different payment methods.
 
- - The solution should build.
- - The tests should all pass.
- - You should not change the method signature of the MakePayment method.
-
-You are free to use any frameworks/NuGet packages that you see fit.  
- 
-You should plan to spend around 1 to 3 hours to complete the exercise.
+## Results
+- The refactored payment service is now more modular, testable, and maintainable. New payment methods can be added with minimal changes to existing code, and the use of interfaces allows for easier mocking during unit tests.
+- Unit tests were created for each component, ensuring that individual parts of the system work as expected. This improves reliability and helps catch bugs early in the development process.
+- Overall, the refactoring has led to a cleaner architecture that adheres to solid principles, making future enhancements and maintenance more straightforward.
+- No more duplicated code. 
+- Readable and easy to follow.
